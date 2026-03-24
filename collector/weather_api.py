@@ -23,7 +23,7 @@ def get_weather_data(api_key, start_date, end_date, station_id="108"):
     params = {
         'serviceKey': api_key,
         'pageNo': '1',
-        'numOfRows': '100',
+        'numOfRows': '999', # 최대 1000건까지 한 번에 요청 가능
         'dataType': 'JSON',
         'dataCd': 'ASOS',    # 종관기상관측
         'dateCd': 'DAY',     # 일자별 데이터
@@ -85,10 +85,10 @@ if __name__ == "__main__":
         
     my_weather_key = secrets["WEATHER_API_KEY"]
     
-    # C. 데이터 수집 테스트 (2023년 7월 1일 ~ 10일, 서울)
-    print("기상청 데이터를 수집하는 중입니다...\n")
-    weather_df = get_weather_data(my_weather_key, '20230701', '20230710', '108')
+    # # C. 데이터 수집 테스트 (2023년 7월 1일 ~ 10일, 서울)
+    # print("기상청 데이터를 수집하는 중입니다...\n")
+    # weather_df = get_weather_data(my_weather_key, '20230701', '20230710', '108')
     
-    if weather_df is not None:
-        print("✅ 기상 데이터 수집 및 전처리 완료!\n")
-        print(weather_df)
+    # if weather_df is not None:
+    #     print("✅ 기상 데이터 수집 및 전처리 완료!\n")
+    #     print(weather_df)

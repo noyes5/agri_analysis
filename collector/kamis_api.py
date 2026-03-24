@@ -19,7 +19,7 @@ def get_kamis_data(api_key, user_id, target_date):
     # 1. API 엔드포인트 및 파라미터 설정
     url = "http://www.kamis.or.kr/service/price/xml.do"
     
-    params = {
+    params = { 
         'action': 'dailyPriceByCategoryList', # 일별 부류별 도소매가격정보 조회
         'p_cert_key': api_key,
         'p_cert_id': user_id,
@@ -98,3 +98,11 @@ if __name__ == "__main__":
     if price_df is not None:
         print("✅ 가격 데이터 수집 및 전처리 완료!\n")
         print(price_df.head())
+
+
+
+
+
+##  상품 목록 : ['배추' '양배추' '시금치' '상추' '얼갈이배추' '수박' '참외' '오이' '호박' '토마토' '무' '당근' '열무'
+#               '건고추' '풋고추' '붉은고추' '피마늘' '양파' '파' '생강' '미나리' '깻잎' '피망' '파프리카' '멜론'
+#               '깐마늘(국산)' '알배기배추' '브로콜리' '방울토마토']
