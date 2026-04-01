@@ -1,41 +1,56 @@
-======================================================================
-⭐ AI 농산물 가격 예측 프로젝트 총정리
+agri_platform/
+├── fastapi_hub/             # [중심] 데이터 허브 및 DB 관리 (Port: 8000)
+│   ├── main.py              # API 엔드포인트 (데이터 수신/조회 입구)
+│   ├── database.py          # DB 연결 설정 (SQLAlchemy)
+│   ├── models.py            # DB 테이블 설계 (Price, WeatherHistory, Forecast)
+│   ├── schemas.py           # 데이터 송수신 규격 (Pydantic Model)
+│   └── models_storage/      # 학습된 AI 모델 파일 (.pkl) 저장소
+│
+├── collector/               # [수집] 외부 API 데이터 수집기
+│   ├── weather_api.py       # 기상청 API 호출 모듈
+│   ├── kamis_api.py         # KAMIS API 호출 모듈
+│   ├── init_pusher.py       # [실행] 5년치 과거 데이터 초기 전송기 (Init 모드)
+│   └── daily_pusher.py      # [실행] 매일 어제/내일 데이터 전송기 (Daily 모드)
+│
+##################진행중######################### 
+#├── analytics/               # [분석] 데이터 정제 및 ML 학습
+#│   ├── processor.py         # DB에서 데이터를 가져와 Join 및 정제 (Cleaning)
+#│   ├── trainer.py           # 정제된 데이터로 AI 모델 학습 (.pkl 생성)
+#│   └── feature_engineer.py   # 이동평균, 전날 가격 등 새로운 변수 생성
+│
+├── backend_spring/          # [서비스] 사용자용 웹 서버 (Java/Spring Boot)
+│
+├── secret.json              # API 키 관리 파일
+└── requirements.txt         # 설치 필요한 라이브러리 목록
 
-1단계: 데이터 소스 확보 (Data Sourcing)
 
-두 가지 서로 다른 성격의 데이터를 수집하는 체계를 만들었습니다.
-과거 데이터: KAMIS(식품유통정보)에서 5년 치 토마토 가격을, 기상청 ASOS에서 5년 치 과거 날씨를 가져왔습니다.
-미래 데이터: 기상청 단기예보 API를 통해 앞으로의 3일간 예보 데이터를 실시간으로 가져오는 파이프라인을 구축했습니다.
 
-2단계: API 통신 및 보안 (API & Security)
+1. fastapi_hub 터미널
+ - 실행 : uvicorn main:app --reload
+ - http://127.0.0.1:8000/ 주소에 db 저장
+ - 데이터 다시 새로 다운 시 : fastapi_hub에 저장된 agri_data.db 데이터 삭제 이후 다시 진행
 
-가장 고비였던 Forbidden 에러를 해결하며 실무적인 기술을 익혔습니다.
-인증 관리: secret.json을 통해 민감한 API 키를 분리 관리했습니다.
-통신 기술: 공공데이터포털의 특수한 인증 방식(Encoding/Decoding) 문제를 unquote와 URL 직접 결합 방식으로 해결했습니다.
+2. init_pusher.py 실행으로 데이터 5년치 저장
+ - weather, price(kamis) original data (정제되지 않은 생 데이터 저장)
 
-3단계: 데이터 정제 및 호환 (Data Preprocessing)
+3. 매일 daily_pusher.py 실행으로 데이터 업데이트
+ - api는 매일 오전 9-10시 사이에 업데이트됨
+	--> 업데이트 기준 : 10시 반
+ - 중복 방지 처리까지 완료 (같은 날짜 데이터는 추가하지 않음)
 
-서로 모양이 다른 데이터를 머신러닝이 먹을 수 있는 요리로 만들었습니다.
-단위 일치: 1시간 단위의 예보 데이터를 1일 단위 평균/최고/최저 기온으로 압축(Aggregation)했습니다.
-인코딩: '서울' 같은 문자열을 LabelEncoder를 통해 숫자로 변환했습니다.
-스케일링: RobustScaler를 사용하여 이상치(Outlier)에 강한 데이터셋을 만들었습니다.
+4. processor.py를 통해 데이터 정제 후 excel파일로 저장
 
-4단계: 베이스라인 모델 비교 (Baseline Comparison)
 
-머신러닝으로 가기 전, 전통적인 통계 모델들과 성능을 비교했습니다.
-ARIMA / ETS: 과거의 추세만을 분석하는 모델들의 RMSE를 확인하여, 우리가 넘어야 할 목표치(Base)를 설정했습니다.
+* db는 SQLite 통해서 확인
+ - 다운로드 주소 : https://sqlitebrowser.org/dl/
+ - agri_data.db에서 데이터 확인
 
-5단계: 머신러닝 학습 및 최적화 (ML Training)
-최신 알고리즘 3종 세트를 투입해 최강의 모델을 뽑았습니다.
-RandomForest / XGBoost / LightGBM: 세 모델을 동시에 학습시키고 RMSE(오차)가 가장 낮은 **최적의 모델(Best Model)**을 선정했습니다.
-모델 저장: 학습된 두뇌를 .pkl 파일로 저장하여 언제든 다시 쓸 수 있게 만들었습니다.
 
-6단계: 실시간 예측 (Inference)
 
-마침내 완성된 모델에 '내일의 예보'를 입력하여 실제 가격을 도출했습니다.
-학습된 데이터의 규격(Feature)과 똑같이 예보 데이터를 가공해 모델에 넣었고, 최종적으로 "내일 예상 가격"이라는 결과물을 얻었습니다.
 
-======================================================================
+
+
+
 ⭐ 추가적으로 고민해볼 부분
 
 요일/휴일 효과: "내일이 월요일인가?" 혹은 "내일이 추석인가?" 같은 정보를 넣으면 가격 급등락을 더 잘 맞힙니다.
