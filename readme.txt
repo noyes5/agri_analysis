@@ -1,44 +1,30 @@
 agri_platform/
-├── fastapi_hub/             # [중심] 데이터 허브 및 DB 관리 (Port: 8000)
-│   ├── main.py              # API 엔드포인트 (데이터 수신/조회 입구)
-│   ├── database.py          # DB 연결 설정 (SQLAlchemy)
-│   ├── models.py            # DB 테이블 설계 (Price, WeatherHistory, Forecast)
-│   ├── schemas.py           # 데이터 송수신 규격 (Pydantic Model)
-│   └── models_storage/      # 학습된 AI 모델 파일 (.pkl) 저장소
+├── fastapi_hub/          # [Center] 데이터 허브 및 모델 서빙 (Port: 8000)
+│   ├── main.py           # API 엔드포인트 및 예측 서비스 실행
+│   ├── database.py       # DB 연결 및 Session 관리
+│   ├── models.py         # SQLAlchemy ORM 정의
+│   ├── schemas.py        # Pydantic 모델 (데이터 검증)
+│   ├── crud.py           # DB 생성/조회 로직 분리 (추천)
+│   └── models_storage/   # analytics에서 학습 완료된 .pkl 파일 보관소
 │
-├── collector/               # [수집] 외부 API 데이터 수집기
-│   ├── weather_api.py       # 기상청 API 호출 모듈
-│   ├── kamis_api.py         # KAMIS API 호출 모듈
-│   ├── init_pusher.py       # [실행] 5년치 과거 데이터 초기 전송기 (Init 모드)
-│   └── daily_pusher.py      # [실행] 매일 어제/내일 데이터 전송기 (Daily 모드)
+├── collector/            # [Source] 외부 데이터 수집 레이어
+│   ├── weather_api.py    # 기상청 데이터 파싱 로직
+│   ├── kamis_api.py      # KAMIS 가격 데이터 파싱 로직
+│   ├── init_pusher.py    # [Initial] 과거 5년치 적재 스크립트
+│   └── daily_pusher.py   # [Batch] 매일 아침 자동 업데이트 스크립트
 │
-##################진행중######################### 
-#├── analytics/               # [분석] 데이터 정제 및 ML 학습
-#│   ├── processor.py         # DB에서 데이터를 가져와 Join 및 정제 (Cleaning)
-#│   ├── trainer.py           # 정제된 데이터로 AI 모델 학습 (.pkl 생성)
-#│   └── feature_engineer.py   # 이동평균, 전날 가격 등 새로운 변수 생성
+├── analytics/            # [Intelligence] ML 파이프라인
+│   ├── processor.py      # RAW 데이터 통합 및 결측치 보정
+│   ├── feature_engineer.py # 분석용 특성(Lag, Moving Average) 생성
+│   ├── trainer.py        # 모델 비교/학습 및 하이퍼파라미터 튜닝
+│   ├── predictor.py      # 3일치 예측 로직 모듈 (API에서 호출됨)
+│   └── data/             # 정제된 중간 파일(.csv) 저장소
 │
-├── backend_spring/          # [서비스] 사용자용 웹 서버 (Java/Spring Boot)
+├── backend_spring/       # [Service] 비즈니스 로직 및 웹 UI (Java)
 │
-├── secret.json              # API 키 관리 파일
-└── requirements.txt         # 설치 필요한 라이브러리 목록
+├── secret.json           # API 키 및 DB 접속 정보 (보안 주의)
+└── requirements.txt      # 프로젝트 의존성 라이브러리
 
-
-
-1. fastapi_hub 터미널
- - 실행 : uvicorn main:app --reload
- - http://127.0.0.1:8000/ 주소에 db 저장
- - 데이터 다시 새로 다운 시 : fastapi_hub에 저장된 agri_data.db 데이터 삭제 이후 다시 진행
-
-2. init_pusher.py 실행으로 데이터 5년치 저장
- - weather, price(kamis) original data (정제되지 않은 생 데이터 저장)
-
-3. 매일 daily_pusher.py 실행으로 데이터 업데이트
- - api는 매일 오전 9-10시 사이에 업데이트됨
-	--> 업데이트 기준 : 10시 반
- - 중복 방지 처리까지 완료 (같은 날짜 데이터는 추가하지 않음)
-
-4. processor.py를 통해 데이터 정제 후 excel파일로 저장
 
 
 * db는 SQLite 통해서 확인
@@ -46,8 +32,52 @@ agri_platform/
  - agri_data.db에서 데이터 확인
 
 
+======================================================================
+==========================프로젝트 실행 순서 ================================
+======================================================================
+
+Step 1: 데이터 허브 가동 (기반 마련)
+fastapi_hub 서버 실행 (uvicorn main:app --reload)
+데이터베이스 테이블 생성 확인 (접속 시 자동 생성되도록 설정했다면 통과)
 
 
+Step 2: 과거 데이터 확보 (초기화)
+collector/init_pusher.py 실행
+
+결과: DB에 지난 5년치 토마토 가격과 날씨 데이터(정제되지 않은 생 데이터 저장)
+
+
+Step 3: AI 학습용 재료 손질 (데이터 정제)
+analytics/processor.py 실행 -> integrated_data.csv 생성
+analytics/feature_engineer.py 실행 -> features.csv 생성 (AI용 힌트 변수 추가)
+
+
+Step 4: AI 모델 탄생 (학습)
+analytics/trainer.py 실행
+결과: models/토마토_best_model.pkl 파일 생성
+생성된 모델 파일을 fastapi_hub/models_storage/ 폴더로 복사 (서버 서빙용)
+
+
+Step 5: 실시간 운영 및 예측 (매일 반복)
+매일 아침: collector/daily_pusher.py 실행 (어제 가격과 오늘/내일 날씨 업데이트)
+사용자 요청 시: fastapi_hub/main.py에서 predictor.py 로직을 호출하여 3일치 예측값 반환
+Spring Boot: FastAPI로부터 데이터를 받아와 사용자 화면에 그래프로 뿌려줌
+
+
+======================================================================
+
+
+새로운 품목 추가 시: processor.py에서 target_item 이름만 바꾸고 Step 3~4만 다시 수행
+
+
+모델 재학습: 데이터가 쌓이면 매일 trainer.py를 다시 돌려 모델의 지능을 최신화(Update)
+ - api는 매일 오전 9-10시 사이에 업데이트됨
+	--> 업데이트 기준 : 10시 반
+ - 중복 방지 처리까지 완료
+
+======================================================================
+======================================================================
+======================================================================
 
 
 

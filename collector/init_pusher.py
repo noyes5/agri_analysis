@@ -46,7 +46,8 @@ def run_init_collection():
     # KAMIS 카테고리 200(채소류) 내의 모든 품목을 가져옵니다.
     print("\n🛒 [2/2] KAMIS 과거 가격 데이터 수집 및 전송 중...")
     start_date = datetime.strptime("2021-03-01", "%Y-%m-%d")
-    end_date = datetime.strptime("2026-03-30", "%Y-%m-%d")
+    now_str = datetime.now().strftime("%Y-%m-%d")
+    end_date = datetime.strptime(now_str, "%Y-%m-%d")
     
     current_date = start_date
     while current_date <= end_date:

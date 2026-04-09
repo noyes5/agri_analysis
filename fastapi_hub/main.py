@@ -112,7 +112,14 @@ def ingest_forecast(forecasts: List[schemas.WeatherForecastCreate], db: Session 
         # 에러 메시지를 프론트(Pusher)에서도 볼 수 있게 상세히 전달
         raise HTTPException(status_code=500, detail=f"DB Error: {str(e)}")
 
-# 서버 실행 테스트용
-@app.get("/")
-def read_root():
-    return {"message": "Agri Data Hub is Running!"}
+@app.get("/api/v1/price")
+def get_all_prices(db: Session = Depends(get_db)):
+    # DB에서 모든 가격 데이터를 가져와서 반환
+    prices = db.query(models.Price).all()
+    return prices
+
+@app.get("/api/v1/weather-history")
+def get_all_weather(db: Session = Depends(get_db)):
+    # DB에서 모든 과거 날씨 데이터를 가져와서 반환
+    weather = db.query(models.WeatherHistory).all()
+    return weather

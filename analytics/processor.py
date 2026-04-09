@@ -15,66 +15,64 @@ def fetch_data(endpoint):
         print(f"❌ {endpoint} 호출 중 오류 발생: {e}")
         return pd.DataFrame()
 
-def process_and_save_data(target_item="토마토", target_location="서울"):
-    print(f"🔄 [{target_item} / {target_location}] 데이터 통합 및 정제 시작...")
+def process_and_save_data(target_item="토마토"):
+    print(f"🔄 [{target_item}] 데이터 통합 및 정제 시작...")
 
     # 1. 데이터 가져오기
     weather_df = fetch_data("weather-history")
     price_df = fetch_data("price")
 
     if weather_df.empty or price_df.empty:
-        print("⚠️ 통합할 데이터가 부족합니다.")
+        print("⚠️ 통합할 데이터가 부족합니다. DB를 확인해주세요.")
         return
 
-    # 2. 날짜 형식 통일 (tm -> date, p_date -> date)
-    # 기상청 날짜(tm)와 가격 날짜(p_date)를 'date' 컬럼으로 통일합니다.
-    weather_df['date'] = pd.to_datetime(weather_df['tm']).dt.strftime('%Y-%m-%d')
-    price_df['date'] = pd.to_datetime(price_df['p_date']).dt.strftime('%Y-%m-%d')
+    # 2. 날짜 형식 통일
+    weather_df['date'] = pd.to_datetime(weather_df['date']).dt.strftime('%Y-%m-%d')
+    price_df['date'] = pd.to_datetime(price_df['date']).dt.strftime('%Y-%m-%d')
 
-    # 3. 가격 데이터 필터링 (원하는 작물과 지역만 추출)
-    # 여러 작물이 섞여 있을 수 있으므로 필터링이 필요합니다.
-    filtered_price = price_df[
-        (price_df['item_name'] == target_item) & 
-        (price_df['location'] == target_location)
-    ].copy()
+    # 3. 가격 데이터 필터링 (품목만 체크)
+    filtered_price = price_df[price_df['item_name'] == target_item].copy()
 
     if filtered_price.empty:
-        print(f"⚠️ {target_item}({target_location})에 해당하는 가격 데이터가 없습니다.")
+        available = price_df['item_name'].unique()
+        print(f"⚠️ DB에 '{target_item}' 품목이 없습니다. (현재 품목: {available})")
         return
 
-    # 4. 데이터 병합 (Left Join)
-    # 날씨는 매일 데이터가 있으므로 weather_df를 왼쪽에 둡니다.
+    # 4. 데이터 병합 (kind_name 대신 item_name 사용)
+    # 규격(kind_name)이 섞이면 학습에 방해될 수 있으므로 대표 명칭인 item_name만 유지합니다.
+    cols = ['date', 'price', 'item_name']
+    if 'unit' in filtered_price.columns:
+        cols.append('unit')
+
     final_df = pd.merge(
         weather_df[['date', 'avg_ta', 'max_ta', 'min_ta', 'sum_rn']], 
-        filtered_price[['date', 'price', 'kind_name', 'unit']], 
+        filtered_price[cols], 
         on='date', 
         how='left'
     )
 
     # 5. 정제 및 결측치 처리
-    final_df = final_df.sort_values('date') # 날짜순 정렬
+    final_df = final_df.sort_values('date')
     
-    # 강수량(sum_rn) NaN은 비가 안 온 것이므로 0으로 채움
+    # 비 안온 날 0처리
     final_df['sum_rn'] = final_df['sum_rn'].fillna(0.0)
     
-    # 주말/휴일 가격(price) NaN은 이전 영업일 가격(ffill)으로 채우고, 
-    # 데이터 시작점의 빈값은 다음날 가격(bfill)으로 채움
+    # [핵심] 품목명 채우기 및 가격 결측치(주말 등) 처리
+    final_df['item_name'] = final_df['item_name'].ffill().bfill()
     final_df['price'] = final_df['price'].ffill().bfill()
     
-    # 작물 정보도 빈칸 채우기
-    final_df['kind_name'] = final_df['kind_name'].ffill().bfill()
-    final_df['unit'] = final_df['unit'].ffill().bfill()
+    if 'unit' in final_df.columns:
+        final_df['unit'] = final_df['unit'].ffill().bfill()
 
     # 6. 결과 저장
     os.makedirs('analytics/data', exist_ok=True)
     save_path = f'analytics/data/{target_item}_integrated_data.csv'
     final_df.to_csv(save_path, index=False, encoding='utf-8-sig')
 
-    print(f"✅ 통합 완료! ({len(final_df)}행)")
+    print(f"✅ {target_item} 통합 완료! (총 {len(final_df)}행)")
     print(f"📂 저장 경로: {save_path}")
     
     return final_df
 
 if __name__ == "__main__":
-    # 실행 (원하는 작물과 지역을 넣으세요)
-    process_and_save_data(target_item="토마토", target_location="서울")
+    process_and_save_data(target_item="토마토")
